@@ -192,7 +192,7 @@ Organized into subsections:
 
 ### What "Good" Looks Like
 
-* **400–500 lines** of markdown (the exemplar is 441 lines).
+* **400–500 lines** of markdown (the exemplar is 441 lines). However, the actual length is less important than the depth of analysis. Don't worry about matching the length of the exemplar. But worry about matching the quality and level of details.
 * **Every claim backed by evidence** — no unsourced assertions about market size, competitor pricing, or user behavior.
 * **Competitor table has real products with real prices** — not "various competitors exist."
 * **MVP spec is buildable** — an AI agent reading it should know exactly what to build, what tech stack to use, and what the data model looks like.
