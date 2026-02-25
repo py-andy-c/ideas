@@ -139,3 +139,8 @@ Your CSV must include the following columns:
 3. Research each idea independently (competitors, market size, difficulty)
 4. Populate your CSV for **ALL 94 IDEAS**.
 5. Save to `workspace/<uuid>_evaluation.csv`.
+
+NOTE:
+
+1. Write the csv file row by row, not all at once to avoid exceeding output limits.
+2. There might already be a csv file in the workspace directory. DO NOT READ IT. Do your own analysis and write your own csv file.
