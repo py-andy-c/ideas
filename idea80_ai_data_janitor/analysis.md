@@ -97,19 +97,19 @@ Booke AI comes closest but is positioned as a full bookkeeping automation platfo
 
 ## 4. Framework Evaluation
 
-*Re-evaluated based on deep dive research, not carried over from the CSV file.*
+*Re-evaluated based on deep dive research and post-review feedback synthesis from 4 independent reviewers.*
 
 | Criteria | Score (1–5) | Notes |
 |---|---|---|
 | **Urgent / Expensive** | ⭐⭐⭐⭐⭐ (5) | Accountants lose 5–10+ hours/week to manual data cleanup. During tax season (Jan–Apr), this becomes existentially urgent — every hour spent cleaning data is an hour not spent earning billable revenue. At $150–300/hr billing rates, even 2 hours saved per client = $300–600 in recovered capacity. |
 | **Path to $10k MRR** | ⭐⭐⭐⭐⭐ (5) | At $49/mo per firm seat (or $9–15/client/mo), 100–200 firm accounts reach $10k MRR. Accountants are professional B2B buyers who expense software without friction. QuickBooks ProAdvisor marketplace (100K+ ProAdvisors) is a built-in distribution channel. |
-| **Distribution** | ⭐⭐⭐⭐ (4) | No direct Google Maps scrapeable database of accountants — but AICPA has 430K+ members, state CPA society directories are semi-public, QuickBooks ProAdvisor directory is searchable, and r/bookkeeping + r/accounting + CPA Facebook groups are active communities. LinkedIn Sales Navigator can target "bookkeeper" and "CPA" titles precisely. **Note:** AICPA directories explicitly prohibit marketing use — must use indirect approaches. |
-| **MVP Buildability** | ⭐⭐⭐⭐⭐ (5) | The simplest possible MVP: CSV upload → LLM categorization with per-client learning → review UI → IIF/CSV export. No bank API integrations needed for V1. No real-time data pipelines. No complex compliance requirements. **Buildable in 3–5 days.** |
+| **Distribution** | ⭐⭐⭐⭐ (4) | No direct Google Maps scrapeable database of accountants — but AICPA has 430K+ members, state CPA society directories are semi-public, QuickBooks ProAdvisor directory is searchable, and r/bookkeeping + r/accounting + CPA Facebook groups are active communities. LinkedIn Sales Navigator can target "bookkeeper" and "CPA" titles precisely. **Note:** AICPA directories explicitly prohibit marketing use — must use indirect approaches. State CPA societies vary in policy — research per state. |
+| **MVP Buildability** | ⭐⭐⭐⭐ (4) | CSV upload → LLM categorization with per-client learning → review UI → IIF/CSV export. No bank API integrations needed for V1. No real-time data pipelines. No complex compliance requirements. **Realistic build time: 7–10 days** (bank CSV format fragmentation across Chase, BofA, Wells Fargo, etc., multi-format export validation, and confidence scoring tuning add complexity beyond the happy path). |
 | **Niche Focus** | ⭐⭐⭐⭐⭐ (5) | Hyper-specific: accountants and bookkeepers cleaning messy client transaction data. Not trying to be a full accounting system. Not trying to serve SMB owners. Not trying to replace QuickBooks. One job, done exceptionally well. |
 | **Frequent** | ⭐⭐⭐⭐ (4) | Monthly minimum (month-end close), weekly for active bookkeepers. **During tax season: daily.** Frequency drops in summer months but remains consistent for bookkeepers with ongoing client engagements. This is NOT a one-time-use tool — new messy data arrives continuously. |
 | **AI Differentiator** | ⭐⭐⭐⭐⭐ (5) | This is a near-perfect LLM application: (1) interpreting cryptic bank descriptions requires natural language understanding, (2) learning per-client chart of accounts is in-context learning, (3) vendor name normalization is entity resolution, (4) anomaly detection is pattern recognition. Pre-LLM, this required rigid rule systems. Post-LLM, it can handle the long tail of messy, unpredictable real-world data. |
 
-**Overall Score: 4.71 / 5.00** — Top Tier
+**Overall Score: 4.57 / 5.00** — Top Tier
 
 ***
 
@@ -159,7 +159,9 @@ LLMs perform entity resolution naturally — they understand that these strings 
 
 ## 6. MVP Specification (Build Plan)
 
-The MVP should be **buildable in 3–5 days** by a single developer. This is intentionally minimal — no bank feed integrations, no complex compliance, no multi-user collaboration. Just the core magic: upload messy CSV → get clean categorized data out.
+The MVP should be **buildable in 7–10 days** by a single developer. This is intentionally minimal — no bank feed integrations, no complex compliance, no multi-user collaboration. Just the core magic: upload messy CSV → get clean categorized data out.
+
+> **Build time note:** The original estimate of 3–5 days assumed smooth CSV parsing. In practice, bank CSV format fragmentation (Chase has 3+ export formats, BofA differs from Wells Fargo, etc.), edge cases (multi-currency, memo fields, split rows), and IIF export validation add 3–5 additional days. Budget accordingly.
 
 ### 6a. Tech Stack
 
@@ -183,11 +185,11 @@ The MVP should be **buildable in 3–5 days** by a single developer. This is int
 **CSV Upload & AI Processing:**
 
 1. Accountant uploads a CSV file (or drags and drops multiple files) containing bank/credit card transactions.
-2. System auto-detects column mapping: Date, Description, Amount, Debit/Credit. Handles common bank CSV formats (Chase, Bank of America, Wells Fargo, Capital One, etc.) with pre-built parsers. Shows preview with editable column mapping for edge cases.
+2. System auto-detects column mapping: Date, Description, Amount, Debit/Credit. **V1 supports 3–4 most common bank CSV formats** (Chase Standard, Bank of America, Wells Fargo, Capital One) with pre-built parsers. Shows preview with **editable column mapping** for all other banks/formats. Template detection for additional banks added iteratively based on user demand.
 3. **AI Categorization Pipeline:**
    * Step 1: **Vendor normalization** — LLM groups raw description strings into canonical vendor names (e.g., 5 variations of Amazon → "Amazon").
    * Step 2: **Category suggestion** — For each transaction, LLM suggests the most likely Chart of Accounts category, using: (a) the client's specific CoA, (b) the vendor name, (c) the transaction amount, (d) the client's industry, and (e) any previously approved categorizations for this client.
-   * Step 3: **Confidence scoring** — Each suggestion gets a confidence score (High / Medium / Low).
+   * Step 3: **Confidence scoring** — Each suggestion gets a confidence score (High / Medium / Low). Confidence is derived from the LLM's structured output (explicit confidence field in JSON response), validated against historical accuracy for the client. Only transactions with >90% confidence are auto-approved; everything else surfaces for human review.
    * Step 4: **Anomaly flagging** — Flag potential duplicates, unusually large amounts, and possible personal expenses.
 
 **Review Interface:**
@@ -203,7 +205,7 @@ The MVP should be **buildable in 3–5 days** by a single developer. This is int
 
 **Export:**
 
-1. **QuickBooks Desktop:** Generate IIF file ready for import (`File > Utilities > Import > IIF File`).
+1. **QuickBooks Desktop:** Generate IIF file ready for import (`File > Utilities > Import > IIF File`). **Include IIF validation step** before download — verify date formats, account references exist, and header structure is correct. A malformed IIF can corrupt a client's QuickBooks file.
 2. **QuickBooks Online:** Generate CSV in QBO's expected import format.
 3. **Xero:** Generate CSV compatible with Xero's bank statement import.
 4. **Excel/CSV:** Generic export for any other system.
@@ -233,12 +235,14 @@ vendor_aliases
   id, client_id, raw_pattern, canonical_vendor_name
 ```
 
-### 6d. Phase 2 Features (Days 4–5 / Week 2)
+### 6d. Phase 2 Features (Week 2–3)
 
 * **"Ask Client" List Export:** Generate a clean, client-friendly PDF or email with the list of transactions that need client clarification. Include: date, amount, description, and a simple text field for the client to write what it was.
 * **Stripe Integration:** $49/mo per firm account or $9/client/mo (whichever they prefer). 14-day free trial. Annual plan discount ($468/yr = $39/mo effective).
 * **Template Detection:** Automatically recognize CSV formats from the top 20 banks (Chase, BofA, Wells Fargo, Capital One, Citi, PNC, TD Bank, US Bank, etc.) to skip column mapping on subsequent uploads.
 * **Dashboard Metrics:** Show per-client stats: transactions processed, accuracy improvement over time, hours estimated saved.
+* **Split Transaction Handling:** Support one bank line → two accounting entries (e.g., $100 restaurant bill = $80 meals + $20 tips). UI allows manual split allocation with AI-suggested splits.
+* **Multi-Seat Pricing:** ProAdvisors often have 3–5 team members. Add firm-level pricing with multiple user seats to capture full-firm adoption.
 
 ### 6e. What is NOT in the MVP
 
@@ -275,7 +279,8 @@ For each lead, prepare a demo that speaks directly to their pain:
 
 * Use [Instantly.ai](https://instantly.ai) or [Smartlead](https://smartlead.ai) for sending, warming, and tracking.
 * Send rate: 100/day per warmed inbox, 3 inboxes = 300/day = ~6,000/month.
-* **Expected performance:** B2B cold email to accounting professionals typically converts at 1–3% for trial starts. At 5,000 emails: 50–150 trials. At 25–30% trial-to-paid conversion: **13–45 paying customers in month 1.**
+* **Expected performance (conservative):** B2B cold email to accounting professionals typically converts at 1–2% for trial starts. At 5,000 emails: 50–100 trials. At **15–20% trial-to-paid** conversion (accountants are conservative with client data — many will test with dummy data first): **8–20 paying customers in month 1.**
+* **Why 15–20% trial-to-paid, not 25–30%:** Accountants will not upload real client financial data to an unknown tool without trust-building. Counter this with: (a) "Try with one real client's CSV — we never store your data" messaging, (b) transparent data handling documentation, (c) zero-retention API disclosure. Trial-to-paid improves to 25%+ after 50 customers generate social proof and testimonials.
 * At $49/mo per firm: **$637–$2,205 MRR in month 1.** Scale to 10 cities and refine messaging in month 2.
 
 ### 7b. Secondary Channels
@@ -321,7 +326,7 @@ For each lead, prepare a demo that speaks directly to their pain:
 * **The risk:** Intuit is actively investing in Intuit Assist. If they ship a "upload messy CSV and we'll clean it" feature natively inside QuickBooks, the standalone tool loses its reason to exist.
 * **Current reality:** Intuit Assist has been widely criticized by accountants as inaccurate and frustrating. Their AI focuses on bank feed categorization (transactions already connected to QBO), not on pre-import messy CSV cleanup. The API limitation (no access to "for review" transactions) suggests this is not their near-term focus.
 * **Mitigation:** Build defensibility through per-client learning. The more an accountant uses the tool for a specific client, the better it gets at categorizing *that client's* transactions. Intuit's generic AI cannot replicate this client-specific knowledge easily. Also: serve Xero users and QuickBooks Desktop users, both of whom Intuit Assist does not cover.
-* **Verdict:** Medium risk, but 6–12 month window is likely open. Move fast.
+* **Verdict:** Medium risk. **Treat the window as 3–6 months, not 6–12.** Intuit could ship a CSV cleanup feature as a QuickBooks enhancement in a single quarter — it's not a new product, it's a feature. Speed to first paying customer is existential.
 
 ### 🟡 Risk 2: Categorization Accuracy Isn't Good Enough
 
@@ -333,8 +338,9 @@ For each lead, prepare a demo that speaks directly to their pain:
 
 * **The risk:** Booke AI, BookkeepingAutomation.ai, Adam by Tyms, and others are all in market. More entrants are likely.
 * **Reality check:** None of these has dominant market share. The market is large (1.4M+ accounting jobs in the US, 318K+ bookkeeping businesses), fragmented, and underserved. Booke AI at $20–50/client/mo is significantly more expensive than a focused cleanup tool at $49/mo flat. Most competitors are trying to be *full bookkeeping automation platforms* — a much harder product to build and sell.
+* **Watch closely:** BookkeepingAutomation.ai at $0.10/transaction is closer to our positioning than initially assessed. If they add a flat-fee tier and multi-client UI, they become a direct substitute. Monitor their roadmap.
 * **Mitigation:** Stay hyper-focused on the **cleanup workflow**, not full bookkeeping. "We're the best at turning messy CSV into clean IIF" is a much more defensible and buildable position than "we do everything Booke AI does."
-* **Verdict:** Low risk. Fragmented market with no dominant player.
+* **Verdict:** Low risk. Fragmented market with no dominant player. BookkeepingAutomation.ai is the closest threat — differentiate on per-client learning and multi-client workflow.
 
 ### 🟢 Risk 4: API/Platform Risk
 
@@ -342,11 +348,11 @@ For each lead, prepare a demo that speaks directly to their pain:
 * **Mitigation:** IIF has been the standard QuickBooks Desktop import format for 15+ years and is deeply embedded in the ecosystem. CSV import for QBO is equally stable. These are file format exports, not API calls — they don't require approval or ongoing API access.
 * **Verdict:** Low risk.
 
-### 🟢 Risk 5: Data Privacy Concerns
+### 🟢 Risk 5: Data Privacy & Data Residency
 
-* **The risk:** Accountants handle sensitive client financial data. Sending it through an AI API could raise privacy/confidentiality concerns.
-* **Mitigation:** (a) All data is processed through the LLM API, not stored by the AI provider (OpenAI/Anthropic both offer zero-retention API options). (b) Clearly communicate data handling practices. (c) Offer an option for accountants to review what data is sent. (d) This is not PII or PHI — it's transaction descriptions and amounts. The privacy standard is much lower than healthcare or legal data.
-* **Verdict:** Low risk with proper communication.
+* **The risk:** Accountants handle sensitive client financial data. Sending it through an AI API could raise privacy/confidentiality concerns. Some firms (especially those with financial services clients) may require data to stay in US-only infrastructure.
+* **Mitigation:** (a) All data is processed through the LLM API, not stored by the AI provider (OpenAI/Anthropic both offer zero-retention API options). (b) Clearly communicate data handling practices. (c) Offer an option for accountants to review what data is sent. (d) This is not PII or PHI — it's transaction descriptions and amounts. The privacy standard is much lower than healthcare or legal data. (e) **Host all infrastructure in US regions** (Supabase US region, Vercel US, Railway US). Document "US-only data processing" prominently. (f) Consider SOC 2 Type I certification as a year-1 goal for firms serving financial services clients.
+* **Verdict:** Low risk with proper communication and US-only hosting.
 
 ### 🟢 Risk 6: Seasonal Revenue Volatility
 
@@ -366,11 +372,11 @@ For each lead, prepare a demo that speaks directly to their pain:
 | **Hosting/infra per user/month** | ~$2–5 (DB + file storage + compute) |
 | **Gross margin** | **~90–95%** |
 | **Customers needed for $10k MRR** | ~204 at $49/mo; or ~25 firms with 45 clients each at $9/client/mo |
-| **Cold emails to get there** (at 1.5% trial conversion, 25% paid conversion) | ~54,400 emails total (~6,800/month over 2 months with 3 warmed inboxes) |
-| **Estimated time to $10k MRR** | **3–4 months** after launch (conservative); 2 months if QuickBooks App Store listing accelerates) |
-| **CAC (estimated)** | $50–150 (cold email tooling ≈ $200/mo + time, amortized across conversions) |
+| **Cold emails to get there** (at 1.5% trial conversion, **17.5% paid conversion**) | ~77,000 emails total (~19,000/month over 4 months with 3 warmed inboxes) |
+| **Estimated time to $10k MRR** | **4–5 months** after launch (conservative); 3 months if QuickBooks App Store listing accelerates or trial-to-paid exceeds 20% |
+| **CAC (estimated)** | $50–200 (cold email tooling ≈ $200/mo + time, amortized across conversions) |
 | **LTV (estimated at 5% monthly churn)** | $980 (20-month average lifetime × $49/mo) |
-| **LTV:CAC Ratio** | **6.5–19.6x** (excellent) |
+| **LTV:CAC Ratio** | **4.9–19.6x** (strong to excellent) |
 
 ***
 
@@ -380,7 +386,7 @@ For each lead, prepare a demo that speaks directly to their pain:
 
 * ✅ **Universally validated pain point** — every accountant/bookkeeper experiences this weekly.
 * ✅ **Near-perfect LLM application** — cryptic text interpretation, entity resolution, pattern learning.
-* ✅ **Simplest possible MVP** — CSV upload → LLM → clean export. No APIs, no integrations, no compliance. 3–5 day build.
+* ✅ **Simplest possible MVP** — CSV upload → LLM → clean export. No APIs, no integrations, no compliance. 7–10 day build.
 * ✅ **Professional B2B buyer** — accountants expense tools routinely. No price sensitivity at $49/mo.
 * ✅ **Per-client learning creates a retention moat** — the more you use it, the better it gets. Switching cost increases over time.
 * ✅ **Adjacent product expansion** — natural upsell path to Ideas 33 (document chasing) and 77 (audit workpapers) for the same buyer.
@@ -389,14 +395,16 @@ For each lead, prepare a demo that speaks directly to their pain:
 
 **Weaknesses:**
 
-* ⚠️ Intuit is investing in AI categorization — the window may be 6–12 months.
+* ⚠️ Intuit is investing in AI categorization — the window may be 3–6 months. Speed is existential.
 * ⚠️ AICPA directory prohibits marketing use — must use indirect distribution channels.
 * ⚠️ Categorization accuracy must be high enough to save time, not create additional review work.
 * ⚠️ No single "Google Maps equivalent" directory for accountants — lead list building requires multiple sources.
 
 **Overall Verdict: STRONG GO ✅✅**
 
-This is the **#1 recommended product to build first.** The combination of a universal pain point, a near-perfect AI application, the simplest possible MVP, and a professional buyer who expenses software routinely makes this the highest-conviction idea in the entire list. Build it, launch cold outreach, and start generating revenue — then use this customer base to upsell Ideas 33 and 77 as the "AI toolkit for accounting firms" platform.
+This is the **#1 recommended product to build first.** The combination of a universal pain point, a near-perfect AI application, the simplest possible MVP, and a professional buyer who expenses software routinely makes this the highest-conviction idea in the entire list. Build it, launch cold outreach, and start generating revenue — then use this customer base to upsell Ideas 33 (document chase) and 89 (AR chaser) as the **"AI toolkit for accounting firms"** platform.
+
+**Platform sequencing:** Idea 80 (Month 1) → Idea 89 (Month 2–3) → Idea 33 (Month 4, targeting Oct/Nov for tax season) → Idea 90 (Later).
 
 ***
 
@@ -439,3 +447,26 @@ This is the **#1 recommended product to build first.** The combination of a univ
 * **Booke AI** — AI bookkeeping automation. Early stage, growing but mixed reviews.
 * **Pilot** (YC W15) — AI-assisted bookkeeping for startups. Scaled to major ARR but targets startups, not accounting firms.
 * **Digits** — VC-backed AI accounting. Targets mid-market. Not a direct competitor at the "cleanup workbench" layer.
+
+***
+
+## Post-Review Notes
+
+*This analysis was revised on 2025-02-25 based on synthesized feedback from 4 independent peer reviewers (agent1, agent2, agent3, agent4). Key changes:*
+
+| Change | Before | After | Rationale |
+|---|---|---|---|
+| MVP Buildability score | 5 | 4 | Bank CSV format fragmentation, IIF validation, and confidence tuning add 3–5 days beyond happy-path estimate |
+| MVP build time | 3–5 days | 7–10 days | Unanimous across all 4 reviewers. CSV parsing edge cases, multi-format export, and testing add real days. |
+| Trial-to-paid conversion | 25–30% | 15–20% | Accountants are conservative with client data. Trust-building takes longer for an unknown tool handling financial data. |
+| Intuit threat window | 6–12 months | 3–6 months | Intuit could ship CSV cleanup as a feature update in a single quarter. Don't assume 12 months. |
+| Time to $10k MRR | 3–4 months | 4–5 months | Follows from lower trial-to-paid. QuickBooks App Store could accelerate. |
+| Bank CSV format scope | "pre-built parsers for all major banks" | 3–4 banks in V1 + editable column mapping | Scope creep. Ship with the 4 most common formats and let users map the rest. |
+| Risk 3 (Competition) | BookkeepingAutomation.ai dismissed | Flagged as closest competitor to monitor | $0.10/transaction + same positioning. If they add flat-fee, they're a direct threat. |
+| Risk 5 (Privacy) | Generic "proper communication" | US-only hosting, SOC 2 year-1 goal | Firms with financial services clients need this. Differentiation opportunity. |
+| Phase 2 additions | n/a | Split transactions, multi-seat pricing | Split transactions are common (agent4). Multi-seat captures full-firm adoption (agent4). |
+| IIF export | Generate IIF | Generate IIF + validation step | Malformed IIF can corrupt QuickBooks data (agent4). Safety-critical. |
+| Confidence scoring | Unspecified method | LLM structured output + historical validation | "How is confidence computed?" needs an answer for developer buildability (agent4). |
+| Overall score | 4.71 | 4.57 | Reflects MVP Buildability adjustment |
+
+**Verdict unchanged: STRONG GO ✅✅** — All 4 reviewers confirmed #1 build priority. No reviewer suggested downgrading the overall verdict.
