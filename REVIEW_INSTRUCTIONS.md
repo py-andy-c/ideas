@@ -86,63 +86,56 @@ If during your research you discover a niche, pain point, or opportunity we comp
 
 ***
 
-## Output Format
+## Output Format: CSV ONLY
 
-Write your evaluation to:
+To facilitate data-driven sorting and consolidation, you must write your final evaluation as a **CSV file** to:
 
 ```
-workspace/<uuid>_evaluation.md
+workspace/<uuid>_evaluation.csv
 ```
 
-Where `<uuid>` is a UUID you generate yourself (e.g., `workspace/a1b2c3d4-e5f6-7890-abcd-ef1234567890_evaluation.md`). This prevents filename collisions if multiple agents review simultaneously.
+Where `<uuid>` is a unique ID you generate.
 
-### Your Document Structure
+### CSV Structure
 
-```markdown
-# Idea Evaluation — [Your Reviewer ID / UUID]
+Your CSV must include the following columns:
 
-## Executive Summary
-[Your 2-3 paragraph overall assessment of the idea list. What patterns do you see? What's overrated vs. underrated? What's the single best idea and why?]
+| Column | Description |
+|---|---|
+| `Id` | The idea number from the longlist (1-94) |
+| `Name` | The short name of the idea |
+| `NicheFocus` | Score (1-5): How specific is the target audience? |
+| `UrgentExpensive` | Score (1-5): Does it solve a "hair on fire" or high-cost problem? |
+| `Frequent` | Score (1-5): Is the problem encountered daily/weekly? |
+| `PathTo10kMRR` | Score (1-5): Can we hit $10k MRR with <100 customers? |
+| `MVPBuildability` | Score (1-5): Can a solo dev build the core loop in 1-2 weeks? |
+| `AIDifferentiator` | Score (1-5): Is AI central to the value, or just a wrapper? |
+| `Distribution` | Score (1-5): Is there a clear, accessible way to reach customers? |
+| `OverallScore` | The average of the scores above |
+| `Verdict` | One of: `Top Tier`, `Strong`, `Interesting`, `Risky`, `Skip` |
+| `Comments` | Detailed qualitative feedback. Challenge the assumptions, mention missed competitors, and provide your technical/market rationale. |
 
-## Methodology
-[Briefly describe how you evaluated: what you researched, what frameworks you applied, any biases you're aware of.]
+**Important CSV Note:** Since comments will likely contain multiple sentences and commas, ensure the `Comments` field is properly **double-quoted** (e.g., `"This is a comment, it contains a comma and multiple sentences."`).
 
-## Top 10 Ideas (Ranked)
-### 1. Idea #XX — [Name]
-**Why:** [2-3 sentences on why this is #1]
-**Risk:** [The biggest risk]
-**Research finding:** [Something you verified or discovered]
+### Example Row
 
-[...repeat for top 10...]
-
-## Bottom 10 Ideas (Ranked from worst)
-### 1. Idea #XX — [Name]
-**Why it's bad:** [2-3 sentences]
-
-[...repeat for bottom 10...]
-
-## Overrated Ideas (Ranked high by us, but weaker than they look)
-[Ideas we rated ⚡⚡ or ⚡⚡⚡ that you think are overhyped, with reasoning]
-
-## Hidden Gems (Ranked low by us, but stronger than they look)
-[Ideas we ranked ⚡ or ⚠️ that you think deserve more attention, with reasoning]
-
-## Idea-Specific Comments
-[For any ideas you want to comment on individually — corrections, challenges, additional competitor intel, market data, etc.]
-
-## New Ideas (Optional)
-[Any ideas you want to propose that we missed entirely]
-
-## Key Takeaways & Recommendations
-[Your 3-5 bullet point summary of what we should do next]
-```
+`89,AI AR Chaser,5,5,5,5,4,5,5,4.8,Top Tier,"This is a pure found-money pitch. High urgency because cash flow is life for SMBs. The infinite parallelism of AI allows for thousands of simultaneous, polite follow-ups that a human simply can't coordinate. High win potential."`
 
 ***
 
-## Rules
+## Evaluation Guidelines (Re-stated)
 
-1. **Be honest.** We want criticism, not validation. If an idea is bad, say so clearly.
-2. **Show your work.** If you make a claim ("this market is actually small"), cite a source or explain your reasoning.
-3. **Be specific.** "This idea seems risky" is useless. "This idea requires HIPAA compliance which costs $10K-$50K and takes 3-6 months" is useful.
-4. **Don't rank what you haven't thought about.** It's better to deeply evaluate 30 ideas than to superficially rank all 94.
-5. **Surprise us.** The most valuable thing you can do is find something we missed — a killer competitor, a fatal flaw, a hidden opportunity, or a completely new angle.
+1. **Be Brutal**: Most of these ideas should be rated 1 or 2 on several metrics. Do not give high scores just to be nice.
+2. **Verify Competitors**: If you find a massive competitor that makes the idea a "Skip," reflect that in the `PathTo10kMRR` and `Verdict`.
+3. **Check Buildability**: If the idea requires complex legal APIs or custom computer vision models that take months to train, rate `MVPBuildability` low.
+4. **Distribution is King**: If you can't scrape a list of the customers, the idea is likely a `Risky` or `Skip`.
+
+***
+
+## Next Steps
+
+1. Read `startup_ideation_framework.md`
+2. Read `idea_brainstorm_longlist.md`
+3. Research each idea independently (competitors, market size, difficulty)
+4. Populate your CSV for **ALL 94 IDEAS**.
+5. Save to `workspace/<uuid>_evaluation.csv`.
