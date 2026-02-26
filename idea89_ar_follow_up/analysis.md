@@ -305,26 +305,151 @@ customer_responses
 
 **Step 1: Build the Lead List**
 
-* **Google Maps scraping** — Search "\[trade] \[city]" (plumber Austin, HVAC Denver, landscaping Nashville) to find service businesses with public email/phone. These are B2B service businesses that invoice clients regularly.
-* **LinkedIn Sales Navigator** — Filter: Title contains "Owner" or "Founder" or "President." Company size: 1–50 employees. Industries: Construction, Professional Services, Marketing/Advertising, IT Services, Healthcare.
-* **QuickBooks ProAdvisor directory** — Bookkeepers who manage AR for multiple clients. One bookkeeper conversion = 10–50 SMB accounts.
-* **Target cities:** High small business density metros — Austin, Nashville, Denver, Portland, Charlotte, Columbus, Tampa, Phoenix, San Diego, Raleigh.
-* **Target list size:** 500 leads per city × 10 cities = 5,000 initial leads.
+Our primary target is the **small business owner** who invoices other businesses — contractors, agencies, consultants, IT services, medical practices — and has their own QuickBooks or Xero account.
+
+**Source 1: Google Maps Scraping**
+
+* Search: `"plumber [city]"`, `"HVAC [city]"`, `"landscaping [city]"`, `"marketing agency [city]"`, `"IT services [city]"` on Google Maps.
+* **Tool:** [Outscraper](https://outscraper.com) Google Maps Scraper ($0.002/result) or [Apify](https://apify.com) Google Maps Scraper.
+* Returns: business name, phone, website, email, reviews, address, Google rating.
+* These are B2B service businesses that invoice clients regularly — exactly our target.
+* \~200–500 results per trade per city.
+
+**Source 2: LinkedIn Sales Navigator** (~$80/month)
+
+* Filter: Title = "Owner" OR "Founder" OR "President." Company size: 1–50 employees.
+* Industries: Construction, Professional Services, Marketing/Advertising, IT Services, Healthcare.
+* Gives you individual names + company. Enrich with email via Apollo.io or Hunter.io.
+* Most targeted for agency/consultant segment.
+
+**Source 3: Apollo.io Lead Database** ($0–49/month)
+
+* Search by role ("owner") + company size (1–50) + industry filters.
+* Free tier: 50 email credits/month. Growth: $49/month for 500 credits.
+* Returns: name, email, phone, company, LinkedIn, company size.
+
+**Source 4: QuickBooks "Find an Accountant" Directory**
+
+* **URL:** [quickbooks.intuit.com/find-an-accountant/](https://quickbooks.intuit.com/find-an-accountant/) — the consumer-facing searchable directory. (Note: `proadvisor.intuit.com` is the ProAdvisor *program* page for accountants to join, not the search directory.)
+* Bookkeepers who manage AR for multiple clients — one bookkeeper conversion = 10–50 SMB accounts activated.
+* Scrape via Outscraper/Apify by iterating ZIP codes.
+
+**Practical Month 1 execution:**
+
+1. Outscraper: Google Maps for 3–4 trades (plumber, HVAC, contractor, agency) across 10 cities → ~3,000–5,000 leads
+2. Apollo.io: enrich with email addresses → ~60% match rate → ~2,000–3,000 emails
+3. **Total: ~3,000–5,000 qualified leads ready for cold email in the first week**
+
+* Target cities with high small business density: Austin, Nashville, Denver, Portland, Charlotte, Columbus, Tampa, Phoenix, San Diego, Raleigh.
 
 **Step 2: The "Free AR Scan" Hook**
 
-The cold email pitch is the most powerful in the entire idea list because it offers **provable value before payment:**
+The cold email pitch offers **provable value before payment** — the most powerful conversion mechanism possible:
 
 * **Subject line:** *"You're owed money — want to see how much?"*
-* **Body (3 sentences max):** *"Most businesses your size have $15,000–$50,000 in overdue invoices that nobody's following up on. Connect your QuickBooks in 30 seconds — we'll show you exactly how much you're owed and which clients are ignoring you. Free. No credit card. Takes 30 seconds."*
-* **The key hook:** The moment they connect QuickBooks, they see their own overdue dollar amount. That creates immediate emotional urgency: "I'm owed *$47,000* and nobody's been following up?!" That emotional reaction converts to paid better than any feature list.
+* **Body (3 sentences max):** *"Most businesses your size have $15,000–$50,000 in overdue invoices that nobody's following up on. Connect your QuickBooks in 30 seconds — we'll show you exactly how much you're owed and which clients are ignoring you. Free. No credit card."*
+* **The key hook:** The moment they connect QuickBooks via OAuth, they see their own overdue dollar amount. That creates immediate emotional urgency: "I'm owed *$47,000* and nobody's been following up?!" That emotional reaction converts to paid far better than any feature list.
+* **Personalization tip:** Vertical-specific messaging can 2x reply rates: "Most plumbing companies your size..." for a plumber, "Most agencies your size..." for a marketing firm.
 
-**Step 3: Cold Email Execution**
+**Step 3: Cold Email Execution — Full Playbook**
 
-* Use [Instantly.ai](https://instantly.ai) or [Smartlead](https://smartlead.ai) for sending, warming, and tracking.
-* Send rate: 100/day per warmed inbox × 3 inboxes = 300/day = ~6,000/month.
-* **Expected performance:** B2B cold email to SMB owners typically converts at 1–3% for trial starts. At 5,000 emails: 50–150 trials. At 30–40% trial-to-paid (higher than average because the "free scan" demonstrates value before payment): **15–60 paying customers in month 1.**
-* At $99/mo: **$1,485–$5,940 MRR in month 1.** Scale to 20 cities in month 2.
+> ⚠️ **Never use your personal Gmail or your main business domain for cold outreach.** If it gets flagged as spam, your real email reputation is ruined. Use separate domains and dedicated sending infrastructure.
+
+**3a. Domain & Email Account Setup (~$20/month)**
+
+1. **Buy a new domain** ($10–15/year on Namecheap or Cloudflare): If your product is `archaser.com`, buy a lookalike like `getarchaser.com` or `tryarchaser.io`.
+2. **Create email accounts** on Google Workspace ($6/user/month) or Microsoft 365 ($6/user/month): Set up 3 accounts, e.g., `andy@getarchaser.com`, `hello@getarchaser.com`, `team@getarchaser.com`.
+3. **Configure DNS records:** SPF, DKIM, and DMARC authentication records in your domain's DNS settings. These prove to Gmail/Outlook that your emails are legitimate. Instantly.ai provides step-by-step guides for this.
+
+**3b. Warm the Inboxes (2–3 weeks before sending)**
+
+A "warmed inbox" is an email account that has gradually built a positive sender reputation through real engagement. If you skip this and blast emails from a new account, Gmail flags you as spam immediately.
+
+How warm-up works (using [Instantly.ai](https://instantly.ai), $30/month):
+
+1. Connect your 3 email accounts to Instantly.
+2. Enable warm-up: Instantly joins a pool of 200K+ other users. Your accounts automatically exchange emails, open them, reply, and mark them "not spam."
+3. This builds your sender reputation over 2–3 weeks.
+4. **During warm-up, send zero cold emails.** Just let the system warm.
+5. Keep warm-up enabled permanently — even after launching campaigns.
+
+**3c. Write Your Email Sequence**
+
+*Email 1 (Day 0):*
+
+```
+Subject: you're owed money — want to see how much?
+
+Hi {{firstName}},
+
+Most {{industry}} businesses your size have $15K–$50K in
+overdue invoices that nobody's following up on.
+
+Connect your QuickBooks in 30 seconds — we'll show you
+exactly how much you're owed and which clients are
+ignoring you. Free. No credit card.
+
+[See your overdue amount →]
+
+— Andy
+```
+
+*Email 2 (Day 3 — if no reply):*
+
+```
+Subject: Re: you're owed money
+
+Hey {{firstName}}, just bumping this. We scanned
+500 small businesses last month — the average had
+$23,000 sitting in overdue invoices.
+
+Takes 30 seconds to check yours: [link]
+
+— Andy
+```
+
+*Email 3 (Day 7 — if no reply):*
+
+```
+Subject: quick question
+
+{{firstName}} — totally fine if this isn't relevant.
+Just curious: how do you currently follow up on
+overdue invoices? Manually? Calendar reminders?
+We've been hearing 5–10 hours/week is typical.
+
+— Andy
+```
+
+**3d. Sending Configuration**
+
+* **Per account:** 30–50 emails/day (NOT 100+ — that triggers spam filters).
+* **3 accounts × 40/day = 120 emails/day = ~2,400/month.**
+* **Inbox rotation:** Instantly automatically rotates between your 3 accounts.
+* **Sending window:** 8am–5pm in the recipient's timezone.
+* **Days:** Monday–Friday only.
+
+**3e. Monitor & Iterate**
+
+* Track: open rate (target: 50%+), reply rate (target: 3–8%), trial starts.
+* If open rate <40%: subject line needs work.
+* If open rate >50% but reply <2%: body copy needs work.
+* A/B test subject lines (e.g., "you're owed money" vs. "$23K in unpaid invoices"). Instantly supports automatic A/B testing.
+
+**3f. Cost Breakdown**
+
+| Item | Monthly Cost |
+|---|---|
+| Domain (1 domain, amortized) | ~$1 |
+| Google Workspace (3 accounts) | $18 |
+| Instantly.ai (Growth plan) | $30 |
+| Apollo.io (lead enrichment) | $0–49 |
+| Outscraper (scraping credits) | $0–30 |
+| **Total cold email infrastructure** | **~$50–130/month** |
+
+**Expected performance:** B2B cold email to SMB owners typically converts at 1–3% for trial starts. At 2,400 emails/month: 24–72 trials. At **30–40% trial-to-paid** (higher than average because the "free scan" demonstrates value before payment): **7–29 paying customers in month 1.**
+
+At $99/mo: **$700–$2,900 MRR in month 1.** Scale to 6 inboxes (2 domains × 3 accounts) in month 2 for ~5,000 emails/month.
 
 ### 7b. Secondary Channels
 
@@ -437,7 +562,7 @@ The cold email pitch is the most powerful in the entire idea list because it off
 * ✅ **AI superpowers are perfectly matched** — Infinite parallelism (50+ accounts), perfect memory (every promise tracked), 24/7 operation (follow-ups at optimal times).
 * ✅ **"Dollars recovered" is the strongest retention metric possible** — The dashboard shows cumulative recovered money. Canceling feels like leaving money on the table.
 * ✅ **YC validation confirms the market** — Fazeshift ($4M), JustPaid, FullSeam all YC-backed in this space. The market is real. But none target US SMBs at $99/mo.
-* ✅ **Pairs naturally with Idea 90 (Vendor Bill Auditor)** — Together they form a complete "money in / money out" financial agent: recover what clients owe you AND catch overcharges from your vendors.
+* ✅ **Platform potential** — AR chasing can expand into a broader "AI financial agent" — adding vendor bill auditing, cash flow forecasting, and payment optimization over time.
 * ✅ **Excellent gross margins (~90%+)** — Twilio + LLM costs are pennies per interaction.
 
 **Weaknesses:**
@@ -449,7 +574,7 @@ The cold email pitch is the most powerful in the entire idea list because it off
 
 **Overall Verdict: STRONG GO ✅✅**
 
-The "found money" pitch is nearly impossible for a business owner to reject. The free scan creates proof before payment. Multi-channel AI outreach (email + SMS + voice) is a genuine capability gap in the US SMB market. The AI superpowers (infinite parallelism, perfect memory, tone calibration) are ideally suited to this use case. Combined with Idea 90 (vendor bill auditor), this forms a complete "AI financial agent" platform with devastating ROI for the customer. Build this in weeks 2–3 after launching Idea 80 (data janitor), and use the accountant/bookkeeper channel from Idea 80 to cross-sell.
+The "found money" pitch is nearly impossible for a business owner to reject. The free scan creates proof before payment. Multi-channel AI outreach (email + SMS + voice) is a genuine capability gap in the US SMB market. The AI superpowers (infinite parallelism, perfect memory, tone calibration) are ideally suited to this use case. The bookkeeper/accountant channel provides a powerful scaling multiplier — one bookkeeper adopting the product can activate 10–50 client businesses. AR chasing is a natural foundation for a broader "AI financial agent" platform over time.
 
 ***
 
@@ -494,3 +619,153 @@ The "found money" pitch is nearly impossible for a business owner to reject. The
 * **JustPaid.ai** (YC) — AI B2B AR workflows. Revenue-based pricing. Contract-to-cash automation.
 * **FullSeam** (YC) — AI employee for finance teams including AR tasks.
 * **Chaser** — UK market leader in AR automation. Validates the model. Growing internationally but hasn't dominated US SMB.
+
+***
+
+## Appendix A: The AR / Invoicing Ecosystem Primer
+
+*This section explains the accounts receivable industry for readers without background knowledge.*
+
+### A1. What Is Accounts Receivable (AR)?
+
+Accounts receivable is, simply, **money that people owe you**. When a plumber finishes a $2,000 job and sends an invoice that says "due in 30 days," that $2,000 sits in "accounts receivable" until the customer actually pays. It's money you've earned but don't have yet.
+
+The opposite is **Accounts Payable (AP)** — money YOU owe to others (your suppliers, landlord, etc.).
+
+AR is a B2B (business-to-business) problem. Retail businesses (restaurants, shops) get paid at the register — cash or card, instantly. But when you sell a service to another business, you typically invoice them and wait 30–60 days for payment. That waiting period is where money gets stuck and collections become painful.
+
+### A2. Who Is Our Target Customer?
+
+Anyone who **invoices other businesses and waits to get paid**. Specifically:
+
+| Business Type | Example | Typical Invoice | Payment Terms | AR Pain Level |
+|---|---|---|---|---|
+| Plumber / HVAC / Electrician | Solo contractor, 2–5 employees | $500–$5,000/job | Net 30 | 🔴 Severe — on the next job, nobody follows up |
+| General Contractor | Manages subcontractors | $10K–$100K+/project | Net 30–60 | 🔴 Severe — large amounts, slow-paying GCs above them |
+| Marketing / Design Agency | 5–20 person shop | $2K–$20K/project or monthly retainer | Net 30 | 🟡 Moderate — have admin, but still manual |
+| IT Consultant / MSP | Managed services provider | $1K–$10K/month recurring | Net 30 | 🟡 Moderate |
+| Medical / Dental Practice | Small private practice | $200–$5,000/patient (after insurance) | Due on receipt or Net 30 | 🔴 Severe (patient collections) |
+| Law Firm (small) | Solo or 2–5 attorneys | $2K–$50K/matter | Net 30–60 | 🟡 Moderate |
+| Freelancer / Consultant | Solo operator | $500–$10K/project | Net 15–30 | 🔴 Severe — no admin help at all |
+
+Our sweet spot: **1–50 employee businesses where AR follow-up is done by the owner, an office manager, or a part-time bookkeeper — inconsistently, manually, and badly.**
+
+### A3. The Invoice-to-Payment Lifecycle
+
+This is what happens when a business invoices a customer:
+
+```
+1. WORK DONE
+   Plumber completes a $2,000 bathroom remodel for a property management company.
+
+2. INVOICE CREATED (Day 0)
+   Plumber opens QuickBooks → creates Invoice #1087 for $2,000.
+   Sets payment terms: "Net 30" (due in 30 days).
+   QuickBooks emails the invoice as a PDF with a payment link.
+
+3. WAITING (Day 1–30)
+   Invoice sits in the customer's accounts payable (AP) queue.
+   Their bookkeeper processes invoices on the 15th and 30th.
+   If the invoice arrives on the 16th, it won't be looked at until the 30th.
+
+4. DUE DATE PASSES (Day 30)
+   Invoice is now "overdue." The plumber should follow up.
+   Reality: the plumber is on another job. Nobody follows up.
+
+5. AGING (Day 31–90+)
+   Day 35: Maybe the plumber remembers and sends a "hey, just checking" email.
+   Day 45: No response. Too busy/awkward to follow up again.
+   Day 60: Now "60 days past due." Much harder to collect.
+   Day 90+: Probability of collecting drops below 70%.
+
+6. PAYMENT (eventually... maybe)
+   Customer pays via: check in the mail, ACH bank transfer,
+   credit card via QuickBooks payment link, or Zelle/Venmo.
+   QuickBooks marks the invoice as "paid" when the money lands.
+```
+
+Our product replaces step 4 and 5. Instead of nobody following up, the AI automatically sends escalating reminders across email, SMS, and voice — and tracks every promise-to-pay.
+
+### A4. What Is DSO?
+
+**DSO = Days Sales Outstanding** — the average number of days it takes to collect payment after an invoice is sent. It’s the standard metric for AR efficiency.
+
+| DSO | Meaning |
+|---|---|
+| **25–35 days** | Good — customers pay around the due date |
+| **40–55 days** | Average — customers pay 10–25 days late |
+| **60–90+ days** | Bad — chronic slow payers |
+
+Our product's measurable impact: **reduce DSO.** Chaser (UK competitor) claims their customers reduce DSO by 75%.
+
+### A5. What Are "Net Terms"?
+
+"Net 30" means "pay within 30 days." Common terms:
+
+| Term | Meaning | Common In |
+|---|---|---|
+| **Due on Receipt** | Pay immediately | Freelancers, small jobs |
+| **Net 15** | Pay within 15 days | Fast-turnaround services |
+| **Net 30** | Pay within 30 days | Most B2B services (standard) |
+| **Net 45 / Net 60** | Pay within 45–60 days | Construction, government, large enterprises |
+| **2/10 Net 30** | 2% discount if paid in 10 days, otherwise full amount due in 30 | Manufacturing, wholesale |
+
+The problem: even when terms say "Net 30," the *actual* average payment is Net 38–45. People are always late — not maliciously, but because AP departments batch-process and prioritize the loudest creditors.
+
+### A6. Who Currently Handles AR Follow-Up?
+
+Depends on business size:
+
+* **1-person business (freelancer, solo contractor):** The owner does everything. Creates invoices, does the work, AND chases payments. The worst case — their most valuable hours (billable time) spent doing low-value collection work.
+* **2–10 person business:** Usually the owner or an office manager / spouse / part-time bookkeeper. Follow-ups are inconsistent.
+* **10–50 person business:** May have a part-time bookkeeper or a dedicated AP/AR clerk ($35K–$50K/year salary). This is the role our product replaces at a fraction of the cost.
+* **50+ employees:** Usually has an accounting department with AR specialists or uses enterprise software (Gaviti, Invoiced). Not our target.
+
+### A7. QuickBooks and Our Product — How They Fit Together
+
+**QuickBooks is the small business owner's primary accounting software.** It is NOT just for accountants — the plumber, contractor, or agency owner signs up for QuickBooks Online ($30–$200/month) themselves and uses it daily.
+
+QuickBooks has ~7M+ paying subscribers:
+
+* **~80% are direct SMB users** (the business owner) — ~5.6M
+* **~20% are accessed/managed by bookkeepers** via QuickBooks Online Accountant (QBOA)
+
+What QuickBooks does for AR:
+
+* **Creates invoices** ✅ — professional PDF invoices with line items, tax, payment terms
+* **Sends invoices** ✅ — email directly from QuickBooks with a payment link
+* **Tracks payment status** ✅ — marks invoices as Paid, Overdue, Partially Paid
+* **Accepts online payments** ✅ — QuickBooks Payments (credit card / ACH) embedded in invoice
+* **Sends reminders** ⚠️ — ONE manual reminder button per invoice. Not automated. No SMS. No calls. No AI.
+* **AR aging report** ✅ — shows overdue buckets (0–30, 31–60, 61–90, 90+)
+
+**The gap our product fills:** QuickBooks stops at "here's a list of overdue invoices." It does NOT automatically follow up, escalate, track promises-to-pay, send SMS, or make calls. The owner sees the aging report and then has to manually email/call each customer one by one.
+
+Bookkeepers use **QuickBooks Online Accountant (QBOA)** — a free dashboard that lets them access all of their clients' QuickBooks accounts from one login. One bookkeeper adopting our product = 10–50 business accounts activated.
+
+Not every SMB uses QuickBooks. Some use Xero (~500K US subscribers), FreshBooks, Wave, Square Invoices, or just email + PDF. QuickBooks is dominant (~60% market share for US small business accounting), so supporting it first captures the largest market. Xero is the obvious second integration.
+
+### A8. What Are Aging Buckets?
+
+The standard way to categorize overdue invoices:
+
+| Bucket | Age | Collection Probability | Our Product's Action |
+|---|---|---|---|
+| **Current** | Not yet due | ~99% | Pre-due reminder (friendly email) |
+| **1–30 days** | Recently overdue | ~95% | Friendly email reminder |
+| **31–60 days** | Moderately overdue | ~85% | Escalated email + SMS |
+| **61–90 days** | Significantly overdue | ~70% | Firm follow-up + AI phone call |
+| **90+ days** | Severely overdue | ~50% or less | Final notice. Consider collection agency. |
+
+Every accounting platform generates an "Aging Report" that groups overdue invoices into these buckets. Our product uses these same buckets to determine what escalation stage each invoice is in.
+
+### A9. TCPA and SMS/Voice Compliance Basics
+
+The **Telephone Consumer Protection Act (TCPA)** regulates automated calls and text messages in the US.
+
+* **B2B exception:** TCPA is much stricter for B2C (consumer) communications. B2B communications to existing business customers have broader exemptions — especially when there's an established business relationship (you did work for them, they owe you money).
+* **10DLC registration:** To send business SMS via Twilio, you register your phone number through the "10-digit long code" (10DLC) campaign. One-time setup (~$15/month) proving you're a legitimate business. Twilio handles this.
+* **Opt-out required:** Every SMS must include opt-out instructions ("Reply STOP to unsubscribe").
+* **Calling hours:** Automated calls restricted to 8am–9pm in the recipient's timezone.
+
+For our use case (contacting invoiced business customers with an established business relationship), compliance is manageable. We're not cold-calling random consumers — we're contacting people who literally owe our customer money for work already performed.
