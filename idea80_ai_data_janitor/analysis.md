@@ -139,7 +139,60 @@ An LLM can interpret these descriptions with **contextual understanding** that r
 
 The critical moat: each client has a different chart of accounts and different categorization logic. A restaurant's "Amazon" purchase is restaurant supplies. A law firm's "Amazon" purchase is office supplies. A construction company's "Amazon" purchase is materials.
 
-With few-shot learning (show the AI 20–50 correctly categorized transactions from this client), it can infer the correct categorization pattern for the remaining 500+ transactions. This is classical in-context learning — exactly what modern LLMs excel at.
+**How it works technically — three approaches, escalating in complexity:**
+
+**Approach A: Few-Shot Learning via Prompt Context (MVP — use this)**
+
+When categorizing transactions for Client X, include their **previous corrections** in the LLM prompt:
+
+```
+System prompt:
+You are a bookkeeping assistant categorizing transactions for [Client Name],
+a [industry] business.
+
+Their Chart of Accounts:
+[full CoA list]
+
+Previously approved categorizations for this client:
+- "AMZN MKTP US*2K9" → Amazon → "Materials & Supplies" (approved 3 times)
+- "SQ *JOES COFFEE" → Joe's Coffee → "Meals & Entertainment" (approved 2 times)
+- "GUSTO 032924" → Gusto → "Payroll Expenses" (approved 5 times)
+- "HOME DEPOT #4829" → Home Depot → "Materials & Supplies" (approved 4 times)
+
+Vendor aliases already confirmed:
+- "AMZN*", "AMZ MKTP*", "AMAZON.COM*" → Amazon
+- "SQ *" → Square payment (vendor name follows)
+
+Now categorize these new transactions:
+[new_transactions]
+
+Return JSON with: vendor_name, suggested_category, confidence (0-1)
+```
+
+The "learning" is growing the few-shot example set over time. Every accountant correction is stored in the database (`transactions` table with `final_category_id`). Each subsequent upload injects more examples into the prompt. LLMs get dramatically better with even 20–50 examples.
+
+**Expected accuracy curve:**
+
+* Upload 1 (new client, no history): ~80% accuracy. CoA + industry context only.
+* Upload 3 (~50 corrections accumulated): ~88% accuracy.
+* Upload 5+ (~200+ corrections): ~95% accuracy. At this point, the tool is significantly faster than manual.
+
+**Approach B: Vector Similarity Retrieval (Phase 2)**
+
+For clients with 1,000+ historical transactions, they won't all fit in the prompt context window. Instead:
+
+1. **Embed** each approved transaction (description + category) using an embedding model (OpenAI `text-embedding-3-small`).
+2. **Store** embeddings in a vector column (pgvector extension in Supabase/Neon — no separate vector DB needed).
+3. When a new transaction arrives, **find the 10 most similar** past transactions and include those as few-shot examples.
+4. This gives the MOST relevant examples, not just the most recent.
+
+This approach scales to clients with 10,000+ transactions without hitting prompt limits.
+
+**Approach C: Per-Client Fine-Tuned Models (Phase 3 / Enterprise)**
+
+For very large firms, fine-tune a smaller model (GPT-4o-mini or open-source) on a specific client's transaction history. Creates a dedicated "expert" model per client. Overkill for MVP but adds defensibility as a moat.
+
+**For MVP, Approach A is all you need.** It uses only the standard PostgreSQL tables (`vendor_aliases` and `transactions`) already in the data model, injected into prompt context.
 
 ### 5c. Vendor Name Normalization (Entity Resolution)
 
@@ -261,11 +314,44 @@ vendor_aliases
 
 **Step 1: Build the Lead List**
 
-* **QuickBooks ProAdvisor directory** — searchable at [proadvisor.intuit.com](https://proadvisor.intuit.com). Contains firm name, location, specialties, and contact information. Over **100K ProAdvisors** listed.
-* **LinkedIn Sales Navigator** — filter by title: "Bookkeeper," "Staff Accountant," "CPA," "Accounting Manager." Filter by company size: 1–50 employees. Filter by industry: Accounting.
-* **State CPA Society websites** — many publish member directories (though AICPA explicitly prohibits using their national directory for marketing). State societies vary in policy.
-* **Google Maps** — search "bookkeeper \[city]" or "CPA firm \[city]" — this IS a Google Maps scrapeable niche, just less obvious than plumbers.
-* **Target list size:** 500 bookkeepers per mid-size city, 10 cities = 5,000 leads. Start with cities with high small business density: Austin, Nashville, Denver, Portland, Charlotte, Columbus.
+**Source 1: QuickBooks "Find an Accountant" Directory**
+
+* **URL:** [quickbooks.intuit.com/find-an-accountant/](https://quickbooks.intuit.com/find-an-accountant/) — this is the consumer-facing search page. (Note: `proadvisor.intuit.com` is the ProAdvisor *program* page for accountants to join; the searchable *directory* is at the Find an Accountant URL.)
+* Search by ZIP code or city. Filter by service type ("Bookkeeping"). Each result shows firm name, city, specialties, and link to profile.
+* **Scraping approach:** Use [Outscraper](https://outscraper.com) or [Apify](https://apify.com) to paginate through results by iterating ZIP codes across target cities. ~500–1,000 results per metro area.
+
+**Source 2: Google Maps Scraping**
+
+* Search: `"bookkeeper [city]"` or `"CPA firm [city]"` or `"accounting firm [city]"` on Google Maps.
+* **Tool:** Outscraper Google Maps Scraper ($0.002/result) or Apify Google Maps Scraper.
+* Returns: business name, phone, website, reviews, address, Google rating.
+* \~200–500 bookkeepers per mid-size city. This IS a Google Maps scrapeable niche — less obvious than plumbers but works.
+
+**Source 3: LinkedIn Sales Navigator** (~$80/month)
+
+* Filter by: Title = "Bookkeeper" OR "Staff Accountant" OR "CPA" OR "Controller"
+* Company size: 1–50 employees. Industry: Accounting.
+* Gives you individual names + company. Enrich with email via Apollo.io or Hunter.io.
+* Most targeted, highest quality leads.
+
+**Source 4: Apollo.io Lead Database** ($0–49/month)
+
+* Search for "bookkeeper" or "accountant" role with company size filters.
+* Free tier: 50 email credits/month. Growth: $49/month for 500 credits.
+* Returns: name, email, phone, company, LinkedIn, company size, industry.
+
+**Source 5: State CPA Society Directories**
+
+* Many state societies publish member directories (though AICPA's national directory explicitly prohibits marketing use). State societies vary in policy — research per state. California CPA Society, Texas Society of CPAs, etc.
+
+**Practical Month 1 execution:**
+
+1. Outscraper: Google Maps for "bookkeeper" in 10 cities → ~3,000–5,000 leads with phone + website
+2. Apollo.io: enrich with email addresses → ~60% match rate → ~2,000–3,000 emails
+3. LinkedIn Sales Navigator: add 500–1,000 high-quality targeted leads
+4. **Total: ~3,000–5,000 qualified leads ready for cold email in the first week**
+
+* Target cities with high small business density: Austin, Nashville, Denver, Portland, Charlotte, Columbus, Phoenix, Tampa, Raleigh, San Antonio.
 
 **Step 2: Generate the "Free Sample Cleanup"**
 
@@ -274,14 +360,110 @@ For each lead, prepare a demo that speaks directly to their pain:
 * Subject line: *"I cleaned up a sample CSV in 30 seconds — want to see yours done?"*
 * Body: Short (3 sentences max). Attach a before/after screenshot: "Here's a messy bank CSV (left) and what our AI does to it in 30 seconds (right) — categorized, vendor names normalized, anomalies flagged. Upload your own client's CSV and try free for 14 days."
 * **The key hook:** The accountant can immediately see the value without any setup. Upload a CSV → see categorized results → export to IIF. Total time: under 2 minutes.
+* **Personalization tip:** Vertical-specific messaging can 2x reply rates: "I cleaned up a sample *restaurant* bank CSV" for a restaurant-focused bookkeeper.
 
-**Step 3: Cold Email Execution**
+**Step 3: Cold Email Execution — Full Playbook**
 
-* Use [Instantly.ai](https://instantly.ai) or [Smartlead](https://smartlead.ai) for sending, warming, and tracking.
-* Send rate: 100/day per warmed inbox, 3 inboxes = 300/day = ~6,000/month.
-* **Expected performance (conservative):** B2B cold email to accounting professionals typically converts at 1–2% for trial starts. At 5,000 emails: 50–100 trials. At **15–20% trial-to-paid** conversion (accountants are conservative with client data — many will test with dummy data first): **8–20 paying customers in month 1.**
-* **Why 15–20% trial-to-paid, not 25–30%:** Accountants will not upload real client financial data to an unknown tool without trust-building. Counter this with: (a) "Try with one real client's CSV — we never store your data" messaging, (b) transparent data handling documentation, (c) zero-retention API disclosure. Trial-to-paid improves to 25%+ after 50 customers generate social proof and testimonials.
-* At $49/mo per firm: **$637–$2,205 MRR in month 1.** Scale to 10 cities and refine messaging in month 2.
+> ⚠️ **Never use your personal Gmail or your main business domain for cold outreach.** If it gets flagged as spam, your real email reputation is ruined. Use separate domains and dedicated sending infrastructure.
+
+**3a. Domain & Email Account Setup (~$20/month)**
+
+1. **Buy a new domain** ($10–15/year on Namecheap or Cloudflare): If your product is `datajanitor.com`, buy a lookalike like `getdatajanitor.com` or `trydatajanitor.io`.
+2. **Create email accounts** on Google Workspace ($6/user/month) or Microsoft 365 ($6/user/month): Set up 3 accounts, e.g., `andy@getdatajanitor.com`, `hello@getdatajanitor.com`, `team@getdatajanitor.com`.
+3. **Configure DNS records:** SPF, DKIM, and DMARC authentication records in your domain's DNS settings. These prove to Gmail/Outlook that your emails are legitimate. Instantly.ai provides step-by-step guides for this.
+
+**3b. Warm the Inboxes (2–3 weeks before sending)**
+
+A "warmed inbox" is an email account that has gradually built a positive sender reputation through real engagement. If you skip this and blast 100 emails from a new account, Gmail flags you as spam immediately.
+
+How warm-up works (using [Instantly.ai](https://instantly.ai), $30/month):
+
+1. Connect your 3 email accounts to Instantly.
+2. Enable warm-up: Instantly joins a pool of 200K+ other users. Your accounts automatically send and receive emails with each other, open them, reply to them, and mark them "not spam."
+3. This sends positive engagement signals (high open rate, high reply rate) to Gmail/Outlook, building your sender reputation over 2–3 weeks.
+4. **During warm-up, send zero cold emails.** Just let the system warm.
+5. Keep warm-up enabled permanently — even after launching campaigns — to maintain reputation.
+
+**3c. Write Your Email Sequence**
+
+Instantly.ai supports multi-step sequences with automatic follow-ups:
+
+*Email 1 (Day 0):*
+
+```
+Subject: messy bank CSV → categorized in 30 seconds
+
+Hi {{firstName}},
+
+I built a tool that turns messy bank statement CSVs into clean,
+categorized data ready for QuickBooks import.
+
+Before/after: you upload a CSV with transactions like
+"AMZN MKTP US*2K9F8" — we normalize vendor names, map to your
+client's chart of accounts, flag anomalies, and export a clean
+IIF or CSV. Takes 30 seconds.
+
+Free 14-day trial, no credit card: [link]
+
+— Andy
+```
+
+*Email 2 (Day 3 — if no reply):*
+
+```
+Subject: Re: messy bank CSV → categorized in 30 seconds
+
+Hey {{firstName}}, just bumping this up. Happy to clean up a
+sample CSV for you for free so you can see the quality. Just
+reply with a file and I'll send back the results.
+
+— Andy
+```
+
+*Email 3 (Day 7 — if no reply):*
+
+```
+Subject: one last thing
+
+{{firstName}} — totally fine if this isn't relevant right now.
+Just curious: how do you currently handle messy client bank
+data? Manually in Excel? Would love to learn how your firm
+handles it.
+
+— Andy
+```
+
+**3d. Sending Configuration**
+
+* **Per account:** 30–50 emails/day (NOT 100+ — that triggers spam filters in 2025).
+* **3 accounts × 40/day = 120 emails/day = ~2,400/month.**
+* **Inbox rotation:** Instantly automatically rotates between your 3 accounts.
+* **Sending window:** 8am–5pm in the recipient's timezone (accountants check email during business hours).
+* **Days:** Monday–Friday only.
+
+**3e. Monitor & Iterate**
+
+* Track: open rate (target: 50%+), reply rate (target: 3–8%), trial starts.
+* If open rate <40%: subject line needs work.
+* If open rate >50% but reply <2%: body copy needs work.
+* A/B test subject lines and body text. Instantly supports automatic A/B testing.
+
+**3f. Cost Breakdown**
+
+| Item | Monthly Cost |
+|---|---|
+| Domain (1 domain, amortized) | ~$1 |
+| Google Workspace (3 accounts) | $18 |
+| Instantly.ai (Growth plan) | $30 |
+| Apollo.io (lead enrichment) | $0–49 |
+| Outscraper (scraping credits) | $0–30 |
+| **Total cold email infrastructure** | **~$50–130/month** |
+
+**Expected performance (conservative):** B2B cold email to accounting professionals typically converts at 1–2% for trial starts. At 2,400 emails/month: 24–48 trials. At **15–20% trial-to-paid** conversion (accountants are conservative with client data — many will test with dummy data first): **4–10 paying customers in month 1.**
+
+**Why 15–20% trial-to-paid, not 25–30%:** Accountants will not upload real client financial data to an unknown tool without trust-building. Counter this with: (a) "Try with one real client's CSV — we never store your data" messaging, (b) transparent data handling documentation, (c) zero-retention API disclosure. Trial-to-paid improves to 25%+ after 50 customers generate social proof and testimonials.
+
+At $49/mo per firm: **$200–$500 MRR in month 1.** Scale to 6 inboxes (2 domains × 3 accounts) in month 2 for ~5,000 emails/month. Add QuickBooks App Store and community channels in parallel.
 
 ### 7b. Secondary Channels
 
@@ -470,3 +652,127 @@ This is the **#1 recommended product to build first.** The combination of a univ
 | Overall score | 4.71 | 4.57 | Reflects MVP Buildability adjustment |
 
 **Verdict unchanged: STRONG GO ✅✅** — All 4 reviewers confirmed #1 build priority. No reviewer suggested downgrading the overall verdict.
+
+***
+
+## Appendix A: The Accounting Ecosystem Primer
+
+*This section explains the industry for readers without accounting background.*
+
+### A1. What Do Accountants and Bookkeepers Actually Do?
+
+**Bookkeeper** (our primary target buyer):
+
+* Core job: **record and organize financial transactions** for a business. Every time money moves — a customer pays, a bill comes in, a paycheck goes out — the bookkeeper records it.
+* Day-to-day: categorize bank transactions, reconcile bank statements with accounting records, manage accounts payable (bills to pay) and accounts receivable (money owed to the business), run payroll, prepare basic financial reports (Profit & Loss, Balance Sheet).
+* Think of them as the **"data entry and organization"** layer of finance.
+
+**Accountant / CPA** (Certified Public Accountant):
+
+* Does everything bookkeepers do, plus higher-level work: **tax preparation, tax planning, financial analysis, audit preparation, advisory services.**
+* A CPA is a licensed professional who passed the CPA exam. They can sign tax returns, audit financial statements, and represent clients before the IRS.
+* Think of them as the **"interpretation and strategy"** layer built on top of the bookkeeper's data.
+
+### A2. Are They Freelancers or Employees?
+
+Both, and this matters for our target:
+
+1. **Independent / freelance bookkeepers** (~318,000 bookkeeping businesses in the US): Solo operators or small firms with 1–5 people. They serve **multiple clients** simultaneously — a typical freelance bookkeeper manages books for 10–30 small businesses. **This is our primary target.** They charge $25–75/hr or a flat monthly retainer ($300–$2,000/month per client).
+
+2. **Accounting firms** (small to mid-size): A CPA firm with 5–50 employees serving 100–500+ clients. Each staff accountant handles a portfolio of clients. The firm bills at $150–$400/hr. Great targets — they have MORE clients and MORE messy data.
+
+3. **In-house bookkeepers/accountants**: Employed by a single company, managing books for that one business only. Less relevant — they don't have the "multi-client messy data" problem as acutely.
+
+### A3. The Business Model — How Do They Get Paid?
+
+```
+Small Business Owner (the "client")
+    |  pays $500–$2,000/month retainer (or $50–$150/hour)
+    ↓
+Bookkeeper / Accountant (our buyer)
+    |  pays $49/month for our tool (saves 5–10 hours/week)
+    ↓
+Our product (AI Data Janitor)
+```
+
+The bookkeeper is our buyer. They are a **B2B professional** who routinely expenses software tools. $49/month is trivial when they charge clients $75–$150/hour. If our tool saves even 1 hour per client per month, the ROI is 2–3x on a single client alone.
+
+### A4. What is QuickBooks / Xero?
+
+**QuickBooks** (by Intuit) and **Xero** are **accounting software** — the "system of record" where all financial data ultimately lives. Think of them like a database with a UI for managing a business's finances.
+
+What they do:
+
+* **Track income and expenses** — every transaction gets recorded
+* **Bank connections** — auto-import transactions from bank accounts
+* **Invoicing** — create and send invoices to customers
+* **Payroll** — manage employee paychecks, taxes, deductions
+* **Financial reports** — generate Profit & Loss, Balance Sheet, Cash Flow statements
+* **Tax preparation data** — organize data for year-end tax filing
+
+**QuickBooks Online (QBO):** Cloud-based, most popular version, ~7M+ subscribers.
+**QuickBooks Desktop (QBD):** Installed software, legacy but still widely used by accountants.
+**Xero:** Cloud-based, popular in Australia/UK, growing in US, ~3M+ subscribers.
+
+**Key insight:** QuickBooks/Xero are where clean data LIVES. Our tool handles the phase BEFORE data gets into QuickBooks — when the raw bank CSV is a mess.
+
+### A5. What is a Chart of Accounts (CoA)?
+
+A chart of accounts is the **master list of categories** that a business uses to organize its finances. Think of it as a taxonomy or tag system. Every business has a different one.
+
+Example CoA for a small restaurant:
+
+```
+INCOME
+  4000 - Food Sales
+  4100 - Beverage Sales
+  4200 - Catering Revenue
+
+EXPENSES
+  5000 - Cost of Goods Sold (Food)
+  5100 - Cost of Goods Sold (Beverages)
+  6000 - Rent
+  6100 - Utilities
+  6200 - Employee Wages
+  6300 - Payroll Taxes
+  6400 - Insurance
+  6500 - Supplies & Smallwares
+  6600 - Marketing & Advertising
+  6700 - Repairs & Maintenance
+  6800 - Professional Services (Legal, Accounting)
+  6900 - Meals & Entertainment
+  7000 - Office Supplies
+  7100 - Software Subscriptions
+```
+
+**Why this matters for our product:** Every client has a DIFFERENT chart of accounts. A restaurant's Amazon purchase = "Supplies & Smallwares." A law firm's Amazon purchase = "Office Supplies." A construction company's Amazon purchase = "Materials & Supplies." The AI must learn *each client's specific CoA* and map transactions to THEIR categories.
+
+### A6. What is IIF?
+
+**IIF = Intuit Interchange Format.** It's a plain-text file format (tab-separated) that QuickBooks Desktop can import. It's been the standard import format for 15+ years.
+
+An IIF file looks like this:
+
+```
+!TRNS  TRNSID  TRNSTYPE  DATE        ACCNT     NAME    AMOUNT   MEMO
+!SPL   SPLID   TRNSTYPE  DATE        ACCNT     NAME    AMOUNT   MEMO
+!ENDTRNS
+TRNS          CHECK      01/15/2025  Checking  Amazon  -150.00  Office supplies
+SPL           CHECK      01/15/2025  Office Supplies    150.00
+ENDTRNS
+```
+
+It's old-school but **universally supported** by QuickBooks Desktop. The advantage: we don't need API approval or OAuth integration to get data INTO QuickBooks Desktop. We just generate a file and the accountant imports it manually (`File → Utilities → Import → IIF File`). Day-1 functionality with zero platform dependency.
+
+For **QuickBooks Online**, we generate a CSV in their expected import format instead.
+
+### A7. What is AICPA?
+
+**AICPA = American Institute of Certified Public Accountants.** It's the national professional organization for CPAs in the United States.
+
+* **430,000+ members** (CPAs and related professionals)
+* Sets professional standards, ethics guidelines, and publishes the CPA exam
+* Has a member directory, but **explicitly prohibits using it for marketing or sales outreach**
+* Hosts conferences, publishes research, provides continuing education
+
+**Why it's relevant:** It's the largest concentration of our target buyers in one organization. But we can't use their directory for cold outreach — their terms prohibit it. Instead, we use: QuickBooks ProAdvisor directory, state CPA society directories (rules vary by state), Google Maps, LinkedIn, and lead databases like Apollo.io.
