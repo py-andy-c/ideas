@@ -135,64 +135,113 @@ An LLM can interpret these descriptions with **contextual understanding** that r
 * It knows "GUSTO" in the context of an ACH debit means payroll.
 * It can learn that for *this specific client* (a construction company), Amazon purchases should map to "Materials & Supplies" rather than "Office Supplies."
 
-### 5b. Per-Client Learning
+### 5b. Per-Client Learning — Three-Layer Architecture
 
 The critical moat: each client has a different chart of accounts and different categorization logic. A restaurant's "Amazon" purchase is restaurant supplies. A law firm's "Amazon" purchase is office supplies. A construction company's "Amazon" purchase is materials.
 
-**How it works technically — three approaches, escalating in complexity:**
+Simple few-shot prompting (injecting past examples into the prompt) works for early uploads but **doesn't scale** — a client with 2,000+ transactions can't fit meaningful examples in the context window, and raw examples don't generalize (the AI sees "this exact string mapped to this category" but doesn't learn WHY).
 
-**Approach A: Few-Shot Learning via Prompt Context (MVP — use this)**
+Instead, we use a **three-layer learning architecture** inspired by [OpenClaw's memory system](https://docs.openclaw.ai) and the [self-improving-agent skill](https://clawhub.ai/pskoett/self-improving-agent). The mental model: corrections flow from raw data → promoted rules → system instructions, just like OpenClaw's daily logs → MEMORY.md → workspace files.
 
-When categorizing transactions for Client X, include their **previous corrections** in the LLM prompt:
+**Layer 1: Transaction History (Raw Corrections)**
+
+Every correction is stored in the database — append-only, never discarded.
+
+* Stored in: `transactions` table (`final_category_id`, `status`, `reviewed_at`) and `vendor_aliases` table.
+* Equivalent to: OpenClaw's `memory/YYYY-MM-DD.md` daily logs — raw, unprocessed, but searchable.
+* Scale: unlimited. Cheap to store. But NOT directly injected into prompts (too large).
+
+**Layer 2: Learned Rules (Promoted Patterns)**
+
+When the same mapping recurs 3+ times, the system **automatically extracts and promotes** it into a compact client rule set. This is analogous to the self-improving-agent's promotion trigger: `Recurrence-Count >= 3` → promote to permanent memory.
+
+Stored as structured JSON per client in a `client_rules` table:
+
+```json
+{
+  "client_id": "acme_construction",
+  "vendor_rules": [
+    {"pattern": "AMZN*", "vendor": "Amazon", "category": "Materials & Supplies",
+     "confidence": 0.97, "occurrence_count": 14, "last_seen": "2025-02-20"},
+    {"pattern": "SQ *", "vendor": "Square (parse after *)", "category": "varies",
+     "confidence": 0.90, "occurrence_count": 8, "last_seen": "2025-02-18"},
+    {"pattern": "GUSTO*", "vendor": "Gusto", "category": "Payroll Expenses",
+     "confidence": 0.99, "occurrence_count": 22, "last_seen": "2025-02-25"}
+  ],
+  "category_rules": [
+    {"rule": "Home improvement stores (Home Depot, Lowes) → Materials & Supplies, not Office Supplies",
+     "source": "user_correction", "occurrence_count": 5},
+    {"rule": "Restaurant charges under $30 → Meals & Entertainment. Over $200 → Client Entertainment (needs receipt)",
+     "source": "user_correction", "occurrence_count": 3}
+  ]
+}
+```
+
+Why this is better than raw few-shot:
+
+* **Compact:** ~50–100 rules per client, not 2,000 raw transactions. Fits easily in any prompt.
+* **Generalizable:** The rule `AMZN*` catches future Amazon variants the AI has never seen before.
+* **Transparent:** Accountant can see and edit "what the AI has learned" for each client (a stickiness feature — they've invested in training it, which increases switching cost).
+
+**Layer 3: Vector Similarity Fallback (Novel Transactions)**
+
+For transactions that don't match ANY Layer 2 rule (a brand-new vendor, an unusual purchase), fall back to vector similarity search over the full Layer 1 history:
+
+1. **Embed** each approved transaction (description + category) using OpenAI `text-embedding-3-small`.
+2. **Store** embeddings in a vector column (pgvector extension in Supabase/Neon — no separate vector DB needed).
+3. When a novel transaction arrives, **find the 5–10 most similar** past transactions and include those as few-shot examples.
+4. This handles the long tail — the one-off vendor seen once before.
+
+**The Feedback Loop (Capture → Track → Promote)**
+
+Inspired by the self-improving agent's learning loop:
+
+1. **AI categorizes with confidence scores** → low-confidence items highlighted in yellow/red in the review UI.
+2. **Human reviews and corrects** → corrections stored in Layer 1 (raw history).
+3. **System detects recurring patterns** → background job: "if a vendor→category mapping has been confirmed ≥3 times, upsert into `client_rules` (Layer 2)."
+4. **Layer 2 rules injected into prompt** for all future uploads → accuracy improves, fewer low-confidence items appear.
+5. **Periodic rule review** → accountant can view "Learned Rules for \[Client Name]" in the UI and edit/delete any rule (like editing `MEMORY.md` in OpenClaw).
+
+**Data Model Addition (for Layer 2):**
 
 ```
-System prompt:
-You are a bookkeeping assistant categorizing transactions for [Client Name],
-a [industry] business.
-
-Their Chart of Accounts:
-[full CoA list]
-
-Previously approved categorizations for this client:
-- "AMZN MKTP US*2K9" → Amazon → "Materials & Supplies" (approved 3 times)
-- "SQ *JOES COFFEE" → Joe's Coffee → "Meals & Entertainment" (approved 2 times)
-- "GUSTO 032924" → Gusto → "Payroll Expenses" (approved 5 times)
-- "HOME DEPOT #4829" → Home Depot → "Materials & Supplies" (approved 4 times)
-
-Vendor aliases already confirmed:
-- "AMZN*", "AMZ MKTP*", "AMAZON.COM*" → Amazon
-- "SQ *" → Square payment (vendor name follows)
-
-Now categorize these new transactions:
-[new_transactions]
-
-Return JSON with: vendor_name, suggested_category, confidence (0-1)
+client_rules
+  id, client_id, rule_type (vendor_mapping | category_rule | exclusion),
+  pattern, canonical_vendor, suggested_category_id,
+  confidence, occurrence_count, first_seen, last_seen,
+  promoted_at, status (active | overridden | deleted),
+  source (auto_promoted | user_created)
 ```
 
-The "learning" is growing the few-shot example set over time. Every accountant correction is stored in the database (`transactions` table with `final_category_id`). Each subsequent upload injects more examples into the prompt. LLMs get dramatically better with even 20–50 examples.
+**Prompt Construction Order:**
 
-**Expected accuracy curve:**
+When categorizing new transactions for Client X, the prompt is assembled in this order:
+
+1. System instructions (role, output format)
+2. Client's Chart of Accounts (full list)
+3. Client's industry context
+4. **Layer 2: All active `client_rules`** (compact, ~50–100 rules)
+5. **Layer 3: Top 10 most similar past transactions** (for novel items not covered by rules)
+6. The new transactions to categorize
+
+This keeps the prompt efficient (~2K–5K tokens for rules + examples) while giving the AI maximally relevant context.
+
+**Expected accuracy curve with three-layer architecture:**
 
 * Upload 1 (new client, no history): ~80% accuracy. CoA + industry context only.
-* Upload 3 (~50 corrections accumulated): ~88% accuracy.
-* Upload 5+ (~200+ corrections): ~95% accuracy. At this point, the tool is significantly faster than manual.
+* Upload 3 (~50 corrections, ~15 promoted rules): ~90% accuracy.
+* Upload 5+ (~200+ corrections, ~40+ promoted rules): ~95%+ accuracy.
+* Upload 10+ (mature rule set): ~97%+ on known vendors, 85%+ on novel vendors.
 
-**Approach B: Vector Similarity Retrieval (Phase 2)**
+**Phase Rollout:**
 
-For clients with 1,000+ historical transactions, they won't all fit in the prompt context window. Instead:
+| Phase | What Ships | Layer |
+|---|---|---|
+| **MVP (Week 1–2)** | Few-shot from Layer 1 (last 50 corrections in prompt). Simple and sufficient for first 5 uploads per client. | Layer 1 only |
+| **V1.1 (Week 3–4)** | Add `client_rules` table. Background job promotes recurring patterns. "Learned Rules" page in UI. | Layer 1 + Layer 2 |
+| **V1.2 (Month 2+)** | Add pgvector, embed historical transactions. Vector fallback for novel vendors. | All three layers |
 
-1. **Embed** each approved transaction (description + category) using an embedding model (OpenAI `text-embedding-3-small`).
-2. **Store** embeddings in a vector column (pgvector extension in Supabase/Neon — no separate vector DB needed).
-3. When a new transaction arrives, **find the 10 most similar** past transactions and include those as few-shot examples.
-4. This gives the MOST relevant examples, not just the most recent.
-
-This approach scales to clients with 10,000+ transactions without hitting prompt limits.
-
-**Approach C: Per-Client Fine-Tuned Models (Phase 3 / Enterprise)**
-
-For very large firms, fine-tune a smaller model (GPT-4o-mini or open-source) on a specific client's transaction history. Creates a dedicated "expert" model per client. Overkill for MVP but adds defensibility as a moat.
-
-**For MVP, Approach A is all you need.** It uses only the standard PostgreSQL tables (`vendor_aliases` and `transactions`) already in the data model, injected into prompt context.
+**The key insight:** Architect the data model for all three layers from day 1 (it's just one extra table), even if Layer 2 promotion logic and Layer 3 vectors ship later. This avoids a painful migration.
 
 ### 5c. Vendor Name Normalization (Entity Resolution)
 
@@ -346,6 +395,7 @@ All three platforms are accessible for free testing:
   * CSV import: `Bank Accounts → select account → Import a Statement → upload CSV → map columns.`
 
 **End-to-End Import Test:**
+
 1. Download your real bank CSV.
 2. Run through the AI pipeline → get categorized output.
 3. Export as IIF (for QBD) and CSV (for QBO and Xero).
@@ -690,7 +740,14 @@ This is the **#1 recommended product to build first.** The combination of a univ
 * [QuickBooks App Store Listing Requirements](https://developer.intuit.com) — Technical, security, and marketing review process (~20 days).
 * [QuickBooks IIF Import Documentation](https://quickbooks.intuit.com/learn-support/en-us/) — IIF file format specification for Desktop import.
 * [Xero API — Bank Transactions](https://developer.xero.com/documentation/api/accounting/banktransactions) — Creating bank transactions with AccountCode categorization.
-* [QuickBooks ProAdvisor Directory](https://proadvisor.intuit.com) — Searchable directory of 100K+ ProAdvisors.
+* [QuickBooks "Find an Accountant" Directory](https://quickbooks.intuit.com/find-an-accountant/) — Searchable directory of ProAdvisors.
+* [QuickBooks ProAdvisor Program](https://proadvisor.intuit.com) — ProAdvisor program page (for accountants to join, not the search directory).
+
+### Per-Client Learning Architecture References
+
+* [OpenClaw Memory System](https://docs.openclaw.ai) — File-first two-tier memory architecture: ephemeral daily logs (`memory/YYYY-MM-DD.md`) + curated durable memory (`MEMORY.md`). Hybrid search (BM25 + vector similarity) for retrieval. Automatic memory flush before context truncation. Inspired our Layer 1 (raw history) → Layer 2 (promoted rules) architecture.
+* [Self-Improving Agent Skill (ClawHub)](https://clawhub.ai/pskoett/self-improving-agent) — Captures learnings, errors, and corrections in `.learnings/` files. Promotion trigger: `Recurrence-Count >= 3` across `>= 2` tasks within 30 days → promote to system prompt. Pattern-Key deduplication. Inspired our automatic rule promotion logic (3+ same vendor→category corrections → promote to `client_rules`).
+* [OpenClaw Workspace Structure](https://docs.openclaw.ai) — `AGENTS.md`, `SOUL.md`, `TOOLS.md`, `MEMORY.md` hierarchy for separating behavioral, procedural, and factual memory. Analogous to our separation of client rules (factual), categorization instructions (procedural), and industry context (behavioral).
 
 ### YC / Startup Inspiration
 
