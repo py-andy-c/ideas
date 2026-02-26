@@ -306,6 +306,74 @@ vendor_aliases
 * ❌ Mobile app — desktop/web only.
 * ❌ Receipt OCR — out of scope for V1. Focus on transaction categorization.
 
+### 6f. Testing & Validation Plan
+
+Before launching, we need confidence in three things: (1) CSV parsing works across bank formats, (2) AI categorization quality is good enough to save time, and (3) the exported IIF/CSV imports cleanly into QuickBooks/Xero. Here's how to validate each.
+
+**Getting Realistic Test Data**
+
+* **Your own bank accounts (Day 1):** Download CSV exports from your own Chase/BofA/Capital One/etc. online banking (last 3 months). This gives you real transaction descriptions (`SQ *SOMESTORE`, `AMZN MKTP US*2K9`, `UBER EATS`) immediately.
+* **Multiple bank formats:** Ask friends/family to download CSV exports from different banks. You need to see how each bank formats columns differently — column names, date formats, amount sign conventions (negative numbers vs. separate Debit/Credit columns).
+* **Sample data online:** Kaggle has public bank transaction datasets. Accounting tool docs often include sample CSVs. Useful for volume testing.
+* **The gold standard (pre-launch):** Ask 1–2 real bookkeepers (via Reddit r/bookkeeping, or personal network) to share an anonymized client CSV. Even one real-world bookkeeper's file will reveal edge cases: split deposits, foreign currency transactions, memo fields stuffed with random notes, etc.
+
+**Validating AI Categorization Quality**
+
+1. **Create a ground truth.** Take your own bank CSV (~100–200 transactions). Manually categorize each one yourself using a simple CoA (Income, Rent, Groceries, Dining, Transportation, Subscriptions, Shopping, etc.). Takes ~30 minutes. Now you have a labeled test set.
+2. **Run the AI pipeline.** Feed the same CSV + your CoA to the categorization pipeline. Get back the AI's suggestions.
+3. **Compare and measure.** How many did the AI get right?
+   * **First run (no client history):** Target 75–85% accuracy. Most should be right; the misses should be understandable.
+   * **After correcting mistakes and re-running:** Target 88–95%. You should only be fixing a handful.
+4. **The gut check question:** "If I were a bookkeeper with 500 transactions, would I rather start from scratch or start from THIS output and fix the ~15% that are wrong?" If the answer is obviously "start from this output" — the product has value.
+5. **Vendor normalization spot check.** Did it correctly group `AMZN MKTP US*2K9F8` and `AMAZON.COM*1R8S3` into "Amazon"? Did it handle `SQ *STARBUCKS COFFEE #1234` → "Starbucks"? This is where LLMs shine and you should see strong results immediately.
+
+**Accessing QuickBooks & Xero for Import Testing**
+
+All three platforms are accessible for free testing:
+
+* **QuickBooks Online (QBO):**
+  * **Free 30-day trial** at [quickbooks.intuit.com](https://quickbooks.intuit.com) — full working QBO account.
+  * **Developer Sandbox:** Sign up for a free Intuit Developer account at [developer.intuit.com](https://developer.intuit.com) → get a permanent sandbox company with sample data. No expiry.
+  * Test CSV import: `Banking → Upload Transactions → select CSV → map columns → import.`
+
+* **QuickBooks Desktop (QBD):**
+  * Free 30-day trial available (Windows only; use Parallels/UTM on Mac).
+  * IIF import test: `File → Utilities → Import → IIF Files.`
+  * ⚠️ **Critical:** A malformed IIF can corrupt a QuickBooks company file. Always test with a throwaway company file, never real data.
+
+* **Xero:**
+  * Every Xero account includes a **Demo Company** pre-populated with sample data. Also offers a free 30-day trial.
+  * CSV import: `Bank Accounts → select account → Import a Statement → upload CSV → map columns.`
+
+**End-to-End Import Test:**
+1. Download your real bank CSV.
+2. Run through the AI pipeline → get categorized output.
+3. Export as IIF (for QBD) and CSV (for QBO and Xero).
+4. Import into each platform's trial/sandbox.
+5. Verify: Did all transactions land in the correct accounts? Any import errors? Any field truncation or date format issues?
+
+**Week-by-Week Testing Timeline**
+
+| Week | Testing Focus |
+|---|---|
+| **Week 1** (while building) | Sign up for QBO trial + Xero trial. Download your own bank CSVs from 2–3 banks. Manually label 100 transactions as ground truth. Test AI categorization pipeline in isolation (prompt engineering, no UI). Iterate on prompt until 80%+ accuracy on first pass. |
+| **Week 2** (integration) | Generate IIF and CSV exports from AI output. Import into QBO trial and Xero trial — verify clean import. Test with a second person's bank CSV (different bank format). Test the "correction → re-upload" flow to verify per-client learning works. |
+| **Pre-launch** (real-world gut check) | Find 1–2 real bookkeepers and offer: "Can I clean up one of your client's CSVs for free?" Give them the output. Watch their reaction. If they say "wow, this would save me hours" — ship it. If they say "this is full of errors" — iterate on the prompt and re-test. |
+
+**CSV Parsing Edge Cases to Watch For**
+
+Banks are surprisingly inconsistent. Test for these specifically:
+
+* **Amount conventions:** Chase uses negative numbers for debits. Some banks have separate "Debit" and "Credit" columns. Some use parentheses for negatives: `(150.00)`.
+* **Date formats:** `MM/DD/YYYY` (US standard), `DD/MM/YYYY` (rare in US but exists), `YYYY-MM-DD` (ISO). Auto-detect or ask user.
+* **Header variations:** Some CSVs have metadata rows before the actual header (account number, date range, bank name). The parser must skip these.
+* **Encoding:** Most are UTF-8, but some bank exports use Windows-1252 or ISO-8859-1. Characters like `café` or `naïve` can break if encoding is assumed.
+* **Column naming:** "Description" vs "Memo" vs "Details" vs "Transaction Description" vs "Narrative" — all mean the same thing. Each bank picks a different name.
+* **Balance column:** Some CSVs include a running balance column. Don't import it as an amount.
+* **Multi-line descriptions:** Rare but some exports split a transaction description across two rows.
+
+The **editable column mapping UI** is the safety valve — if auto-detection fails, the user can manually map columns. But testing with 4–5 different bank formats early will surface the worst issues before customers find them.
+
 ***
 
 ## 7. Distribution Strategy (Detailed Execution Plan)
